@@ -268,7 +268,6 @@ class Trainer(object):
 
                     vis = torch.cat([self.bg_img, self.fg_mask, self.fg_img, self.fake_img])
                     vis = vutils.make_grid(vis, nrow=8, padding=10, pad_value=1)
-                    print(vis.shape)
                     self.summary_writer.add_image('Image_sample', vis, self.steps)
 
                 ## get acc and nmi scores on predictions

@@ -4,7 +4,7 @@ import torch.nn as nn
 from base_layer import *
 from config import cfg
 
-
+import matplotlib.pyplot as plt
 
 class bg_generator(nn.Module):
     def __init__(self, ngf=512):
@@ -22,16 +22,16 @@ class bg_generator(nn.Module):
                                     nn.Tanh())
 
     def forward(self, z):
-        out = self.fc(z).view(-1, self.ngf, 4, 4) 
-        out = self.layers(out) 
+        out = self.fc(z).view(-1, self.ngf, 4, 4)
+        out = self.layers(out)
         return out
 
 
 class fg_generator(nn.Module):
     def __init__(self, c_dim, ngf=512):
         super(fg_generator, self).__init__()
-        self.z_dim = cfg.GAN.Z_DIM 
-        self.cz_dim = cfg.GAN.CZ_DIM 
+        self.z_dim = cfg.GAN.Z_DIM
+        self.cz_dim = cfg.GAN.CZ_DIM
         self.c_dim = c_dim
         self.ngf = ngf
         self.fc = nn.Sequential(nn.Linear(self.z_dim, ngf*4*4*2, bias=False), nn.BatchNorm1d(ngf*4*4*2), GLU())
@@ -57,14 +57,14 @@ class fg_generator(nn.Module):
         cz_ = c_mu + c_std.exp()*cz
         cz_ = cz_.view(-1, self.cz_dim, 1, 1).repeat(1, 1, 4, 4)
         ## get base_feat
-        out = self.fc(z).view(-1, self.ngf, 4, 4) 
+        out = self.fc(z).view(-1, self.ngf, 4, 4)
         out = self.base(torch.cat((out, cz_), 1))
         ## get fg_mask
         out_mask = torch.sigmoid(self.to_mask(out))
         ## get fg_image
         h, w  = out.size(2),out.size(3)
-        c = c.view(-1, self.c_dim, 1, 1).repeat(1, 1, h, w) 
-        out = torch.cat((out, c), 1)
+        c = c.view(-1, self.c_dim, 1, 1).repeat(1, 1, h, w)
+        out = torch.cat((out, c), 1) #torch.Size([4, 16, 128, 128]) torch.Size([1, 200, 128, 128])
         out_img = self.to_img(out)
         return out_mask, out_img
 
@@ -76,12 +76,32 @@ class Generator(nn.Module):
         self.fg_gen = fg_generator(c_dim)
 
     def forward(self, z, cz, c, grid=None):
-        bg_img = self.bg_gen(z) # get background image
+        bg_img = self.bg_gen(z) # get background image'
+
+        """
+        plt.subplot(1,3,1)
+        img_plot = bg_img[0].permute(1,2,0).cpu()*torch.tensor([0.5,0.5,0.5]) + torch.tensor([0.5,0.5,0.5])
+        plt.imshow(img_plot.detach())
+        """
+
         fg_mask, fg_img = self.fg_gen(z, c, cz) # get foreground image
+
+        """
+        plt.subplot(1,3,2)
+
+        img_plot = fg_mask[0].permute(1,2,0).cpu()*torch.tensor([0.5,0.5,0.5]) + torch.tensor([0.5,0.5,0.5])
+        plt.imshow(img_plot.detach())
+
+        plt.subplot(1,3,3)
+        img_plot = fg_img[0].permute(1,2,0).cpu()*torch.tensor([0.5,0.5,0.5]) + torch.tensor([0.5,0.5,0.5])
+        plt.imshow(img_plot.detach())
+        plt.savefig('./bg_img.png', dpi=300)
+        """
+
         if grid != None:
             fg_mask = F.grid_sample(fg_mask, grid, align_corners=True)
             fg_img = F.grid_sample(fg_img, grid, align_corners=True)
-        final_img = bg_img*(1-fg_mask) + fg_img*fg_mask 
+        final_img = bg_img*(1-fg_mask) + fg_img*fg_mask
         return bg_img, fg_mask, fg_img, final_img
 
 
@@ -109,4 +129,3 @@ class Discriminator(nn.Module):
             return info, rf, class_emb, fg_info
         else:
             return info, rf, class_emb
-
